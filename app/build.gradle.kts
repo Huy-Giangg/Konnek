@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.firebase.database)
     implementation(libs.firebase.storage)
     implementation("de.hdodenhof:circleimageview:2.2.0")
+    implementation("com.vanniktech:android-image-cropper:4.6.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
