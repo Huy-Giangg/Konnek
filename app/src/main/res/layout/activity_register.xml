@@ -38,7 +38,7 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/login_email"
         android:hint="Password..."
-        android:inputType="textEmailAddress"
+        android:inputType="textPassword"
         android:background="@drawable/inputs"
         android:padding="4dp"
         android:drawableStart="@drawable/password"
@@ -46,7 +46,6 @@
         android:layout_marginLeft="17dp"
         android:layout_marginRight="17dp">
     </EditText>
-
 
     <Button
         android:id="@+id/register_button"

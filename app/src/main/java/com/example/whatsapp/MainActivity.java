@@ -31,15 +31,19 @@ import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.HashMap;
+
 public class MainActivity extends AppCompatActivity {
 
     private Toolbar mToolBar;
     private ViewPager myViewPager;
     private TabLayout myTabLayout;
     private TabsAccessorAdapter myTabsAccessorAdapter;
-    private FirebaseUser currentUser;
     private FirebaseAuth mAuth;
     private DatabaseReference RootRef;
+    private String currentUserID;
 
 
 
@@ -56,7 +60,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         mAuth = FirebaseAuth.getInstance();
-        currentUser = mAuth.getCurrentUser();
         RootRef = FirebaseDatabase.getInstance().getReference();
 
 
@@ -76,35 +79,56 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onStart() {
         super.onStart();
-
+        FirebaseUser currentUser = mAuth.getCurrentUser();
         if(currentUser == null){
             SendUserToLoginActivity();
-
-        }else{
+        }
+        else{
             VerifyUserExistance();
         }
     }
 
-    private void VerifyUserExistance() {
-        String currentUserID = mAuth.getCurrentUser().getUid();
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+//        if(currentUser != null){
+//            upadteUserStatus("offline");
+//        }
+    }
 
-        RootRef.child("Users").child(currentUserID).addValueEventListener(new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                if ((snapshot.child("name").exists())) {
-                    Toast.makeText(MainActivity.this, "Welcome", Toast.LENGTH_SHORT).show();
+    @Override
+    protected void onStop() {
+        super.onStop();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
 
-                }else{
-                    SendUserToSettingsActivity();
-                }
-            }
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {
-
-            }
-        });
+//        if(currentUser != null){
+//            upadteUserStatus("offline");
+//        }
 
     }
+
+    private void VerifyUserExistance() {
+
+        String uid = mAuth.getCurrentUser().getUid();
+
+        RootRef.child("Users").child(uid)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+
+                        if (!snapshot.hasChild("name")) {
+                            SendUserToSettingsActivity();
+                        } else {
+                            Toast.makeText(MainActivity.this, "Welcome!", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
+    }
+
 
 
 
@@ -121,6 +145,8 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(@NonNull MenuItem item) {
         super.onOptionsItemSelected(item);
         if (item.getItemId() == R.id.main_logout_option) {
+            //upadteUserStatus("offline");
+            SignOutUser();
             mAuth.signOut();
             SendUserToLoginActivity();
         }
@@ -128,7 +154,7 @@ public class MainActivity extends AppCompatActivity {
             SendUserToSettingsActivity();
         }
         if (item.getItemId() == R.id.main_find_friends_option) {
-
+            SendUserToFindFriendsActivity();
         }
         if (item.getItemId() == R.id.main_create_group_opttion) {
             RequestNewGroup();
@@ -198,6 +224,78 @@ public class MainActivity extends AppCompatActivity {
         Intent settingsIntent = new Intent(MainActivity.this, SettingsActivity.class);
         settingsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
         startActivity(settingsIntent);
+        finish();
+    }
+
+    private void SendUserToFindFriendsActivity() {
+        Intent findFriendsIntent = new Intent(MainActivity.this, FindFriendsActivity.class);
+        startActivity(findFriendsIntent);
+    }
+
+    private void upadteUserStatus(String state){
+        String saveCurrentTime, saveCurrentDate;
+
+        Calendar calender = Calendar.getInstance();
+        SimpleDateFormat currentDate = new SimpleDateFormat("MMM dd, yyyy");
+        saveCurrentDate = currentDate.format(calender.getTime());
+
+        SimpleDateFormat currentTime = new SimpleDateFormat("hh:mm a");
+        saveCurrentTime = currentTime.format(calender.getTime());
+
+        HashMap<String, Object> onlineStateMap = new HashMap<>();
+        onlineStateMap.put("time", saveCurrentTime);
+        onlineStateMap.put("date", saveCurrentDate);
+        onlineStateMap.put("state", state);
+
+        currentUserID = mAuth.getCurrentUser().getUid();
+
+        RootRef.child("Users").child(currentUserID).child("userState")
+                .updateChildren(onlineStateMap);
+
+    }
+
+    // Giả sử hàm này đang nằm trong MainActivity.java
+    private void SignOutUser() {
+
+        // Khai báo lại các biến cần thiết cho Firebase
+        FirebaseAuth mAuth = FirebaseAuth.getInstance();
+        FirebaseUser currentUser = mAuth.getCurrentUser();
+
+        if (currentUser != null) {
+            // 1. GHI TRẠNG THÁI OFFLINE LÊN FIREBASE TRƯỚC KHI LOGOUT
+            DatabaseReference RootRef = FirebaseDatabase.getInstance().getReference();
+            String currentUserID = currentUser.getUid();
+
+            // Tạo dữ liệu offline (Tương tự như trong updateUserStatus)
+            String saveCurrentTime, saveCurrentDate;
+            Calendar calendar = Calendar.getInstance();
+
+            SimpleDateFormat currentDate = new SimpleDateFormat("MMM dd, yyyy");
+            saveCurrentDate = currentDate.format(calendar.getTime());
+
+            SimpleDateFormat currentTime = new SimpleDateFormat("hh:mm a");
+            saveCurrentTime = currentTime.format(calendar.getTime());
+
+            HashMap<String, Object> offlineStateMap = new HashMap<>();
+            offlineStateMap.put("time", saveCurrentTime);
+            offlineStateMap.put("date", saveCurrentDate);
+            offlineStateMap.put("state", "offline"); // 👈 CHÍNH LÀ ĐÂY
+
+            // Cập nhật lên Firebase
+            RootRef.child("Users").child(currentUserID).child("userState")
+                    .updateChildren(offlineStateMap);
+
+            // 2. Hủy bỏ cơ chế tự động Offline của onDisconnect (nếu đã đặt)
+            RootRef.child("Users").child(currentUserID).child("userState").child("state").onDisconnect().cancel();
+
+            // 3. THỰC HIỆN ĐĂNG XUẤT
+            mAuth.signOut();
+        }
+
+        // 4. Chuyển hướng người dùng về màn hình đăng nhập
+        Intent loginIntent = new Intent(MainActivity.this, LoginActivity.class);
+        loginIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+        startActivity(loginIntent);
         finish();
     }
 }
