@@ -7,6 +7,17 @@
     android:layout_height="match_parent"
     tools:context=".PhoneLoginActivity">
 
+    <ImageView
+        android:id="@+id/phone_image"
+        android:layout_width="match_parent"
+        android:layout_height="250dp"
+        android:src="@drawable/logowrapper"
+        android:layout_alignParentStart="true"
+        android:layout_alignParentTop="true"
+        android:scaleType="fitCenter"
+        android:layout_marginTop="20dp">
+    </ImageView>
+
     <EditText
         android:id="@+id/phone_number_input"
         android:layout_width="match_parent"
@@ -14,7 +25,7 @@
         android:layout_alignParentStart="true"
         android:layout_marginStart="17dp"
         android:layout_marginEnd="17dp"
-        android:layout_marginTop="180dp"
+        android:layout_marginTop="20dp"
         android:background="@drawable/inputs"
         android:padding="8dp"
         android:hint="Write your phone number"
@@ -22,7 +33,8 @@
         android:textSize="15sp"
         android:drawableStart="@drawable/phone"
         android:textAlignment="center"
-        android:textStyle="bold">
+        android:textStyle="bold"
+        android:layout_below="@+id/phone_image">
 
     </EditText>
 

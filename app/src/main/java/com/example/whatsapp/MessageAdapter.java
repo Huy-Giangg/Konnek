@@ -1,16 +1,10 @@
 package com.example.whatsapp;
 
-import android.Manifest;
-import android.app.Activity;
-import android.app.DownloadManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Environment;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -21,15 +15,16 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
 import com.squareup.picasso.Picasso;
 
-import java.io.File;
 import java.util.List;
 
 import de.hdodenhof.circleimageview.CircleImageView;
@@ -38,21 +33,23 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
 
     private final List<Messages> userMessagesList;
     private final FirebaseAuth mAuth = FirebaseAuth.getInstance();
-
-    // 🟢 Truyền avatar người nhận chỉ 1 lần (fix lỗi load lặp trong onBind)
     private String receiverAvatarUrl = null;
+    private boolean isGroupChat; // Biến cờ xác định là Chat nhóm hay Chat riêng
+
+    // Constructor nhận thêm biến isGroupChat
+    public MessageAdapter(List<Messages> userMessagesList, boolean isGroupChat) {
+        this.userMessagesList = userMessagesList;
+        this.isGroupChat = isGroupChat;
+    }
 
     public void setReceiverAvatarUrl(String url) {
         this.receiverAvatarUrl = url;
     }
 
-    public MessageAdapter(List<Messages> userMessagesList) {
-        this.userMessagesList = userMessagesList;
-    }
-
     @NonNull
     @Override
     public MessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        // Ánh xạ layout custom_messages_layout
         View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.custom_messages_layout, parent, false);
         return new MessageViewHolder(view);
@@ -66,158 +63,186 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         String fromUserID = messages.getFrom();
         String fromMessageType = messages.getType();
 
-        // 🧹 Reset toàn bộ (để tránh view bị reuse sai nội dung)
+        // 1. RESET TRẠNG THÁI VIEW (Tránh lỗi hiển thị khi cuộn)
         holder.senderMessageText.setVisibility(View.GONE);
         holder.receiverMessageText.setVisibility(View.GONE);
         holder.receiverProfileImage.setVisibility(View.GONE);
         holder.messageSenderPicture.setVisibility(View.GONE);
         holder.messageReceiverPicture.setVisibility(View.GONE);
 
+        // Reset Tên người gửi
+        holder.senderName.setVisibility(View.GONE);
+        holder.senderName.setText("");
+
+        // Reset sự kiện click/style
+        holder.senderMessageText.setTypeface(null, Typeface.NORMAL);
+        holder.receiverMessageText.setTypeface(null, Typeface.NORMAL);
         holder.senderMessageText.setOnClickListener(null);
         holder.receiverMessageText.setOnClickListener(null);
+        holder.senderMessageText.setOnLongClickListener(null);
+        holder.messageSenderPicture.setOnLongClickListener(null);
 
-        // 🧑‍🤝‍🧑 Load ảnh đại diện người nhận (chỉ load 1 lần khi truyền vào Adapter)
+        // 2. LOAD AVATAR NGƯỜI NHẬN
         if (!fromUserID.equals(currentUserId)) {
-            if (receiverAvatarUrl != null) {
-                holder.receiverProfileImage.setVisibility(View.VISIBLE);
-                Picasso.get()
-                        .load(receiverAvatarUrl)
-                        .placeholder(R.drawable.profile_image)
-                        .error(R.drawable.profile_image)
-                        .into(holder.receiverProfileImage);
+
+            // Luôn hiện khung ảnh cho người nhận
+            holder.receiverProfileImage.setVisibility(View.VISIBLE);
+
+            if (isGroupChat) {
+                // --- LOGIC CHO NHÓM: Lấy ảnh theo ID từng người ---
+                DatabaseReference usersRef = FirebaseDatabase.getInstance().getReference().child("Users").child(fromUserID);
+
+                usersRef.addValueEventListener(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        if (snapshot.exists() && snapshot.hasChild("image")) {
+                            String receiverImage = snapshot.child("image").getValue().toString();
+
+                            // Load ảnh người gửi tin nhắn đó
+                            Picasso.get().load(receiverImage)
+                                    .placeholder(R.drawable.profile_image)
+                                    .error(R.drawable.profile_image)
+                                    .into(holder.receiverProfileImage);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) { }
+                });
+
+            } else {
+                // --- LOGIC CHO CHAT CÁ NHÂN (Giữ nguyên cũ) ---
+                // Dùng biến receiverAvatarUrl đã truyền từ Activity sang
+                if (receiverAvatarUrl != null) {
+                    Picasso.get().load(receiverAvatarUrl)
+                            .placeholder(R.drawable.profile_image)
+                            .into(holder.receiverProfileImage);
+                }
             }
         }
-        // -----------------------------
-        // 🔥 HIỂN THỊ THEO LOẠI TIN NHẮN
-        // -----------------------------
 
+        // 3. XỬ LÝ HIỂN THỊ THEO LOẠI TIN NHẮN
         switch (fromMessageType) {
-
             case "text":
+                // Format: Nội dung + Giờ (nhỏ)
+                String timeColor = fromUserID.equals(currentUserId) ? "#e0e0e0" : "#757575";
+                String formattedMessage = messages.getMessage() + "<br><small><font color='" + timeColor + "'>" + messages.getTime() + "</font></small>";
 
-                if (fromUserID.equals(currentUserId)) {   // Sender
+                if (fromUserID.equals(currentUserId)) {
+                    // --- SENDER (Gửi đi) ---
                     holder.senderMessageText.setVisibility(View.VISIBLE);
                     holder.senderMessageText.setBackgroundResource(R.drawable.sender_message_layout);
-                    holder.senderMessageText.setTextColor(Color.BLACK);
+                    holder.senderMessageText.setTextColor(Color.WHITE);
+                    holder.senderMessageText.setText(android.text.Html.fromHtml(formattedMessage));
 
-                    holder.senderMessageText.setText(messages.getMessage() +
-                            "\n\n" + messages.getTime() + " - " + messages.getDate());
-
+                    // Sự kiện xóa (Chỉ người gửi mới xóa được)
                     holder.senderMessageText.setOnLongClickListener(v -> {
                         showDeleteConfirmationDialog(holder.itemView.getContext(), messages.getMessageID());
                         return true;
                     });
-
-                } else {  // Receiver
+                } else {
+                    // --- RECEIVER (Nhận về) ---
+                    holder.receiverProfileImage.setVisibility(View.VISIBLE);
                     holder.receiverMessageText.setVisibility(View.VISIBLE);
                     holder.receiverMessageText.setBackgroundResource(R.drawable.receiver_messager_layout);
                     holder.receiverMessageText.setTextColor(Color.BLACK);
+                    holder.receiverMessageText.setText(android.text.Html.fromHtml(formattedMessage));
 
-                    holder.receiverMessageText.setText(messages.getMessage() +
-                            "\n\n" + messages.getTime() + " - " + messages.getDate());
+                    // 🔥 LOGIC QUAN TRỌNG: HIỂN THỊ TÊN NGƯỜI GỬI TRONG NHÓM
+                    if (isGroupChat) {
+                        holder.senderName.setVisibility(View.VISIBLE);
+                        holder.senderName.setText(messages.getName() != null ? messages.getName() : "Unknown");
+                    }
                 }
                 break;
 
-
             case "image":
-                if (fromUserID.equals(currentUserId)) {    // Sender (Người Gửi - Ảnh hiển thị bên phải)
+                if (fromUserID.equals(currentUserId)) {
+                    // SENDER IMAGE
                     holder.messageSenderPicture.setVisibility(View.VISIBLE);
-                    Picasso.get()
-                            .load(messages.getMessage())
-                            .placeholder(R.drawable.profile_image)
-                            .error(R.drawable.error)
-                            .into(holder.messageSenderPicture);
+                    Picasso.get().load(messages.getMessage()).placeholder(R.drawable.profile_image).into(holder.messageSenderPicture);
 
                     holder.messageSenderPicture.setOnLongClickListener(v -> {
                         showDeleteConfirmationDialog(holder.itemView.getContext(), messages.getMessageID());
                         return true;
                     });
-
-                } else {                                  // Receiver (Người Nhận - Ảnh hiển thị bên trái)
-                    // 🌟 Sửa lỗi: Bắt buộc hiển thị ảnh đại diện người gửi để căn lề trái đúng cách
+                } else {
+                    // RECEIVER IMAGE
                     holder.receiverProfileImage.setVisibility(View.VISIBLE);
-
                     holder.messageReceiverPicture.setVisibility(View.VISIBLE);
-                    Picasso.get()
-                            .load(messages.getMessage())
-                            .placeholder(R.drawable.profile_image)
-                            .error(R.drawable.error)
-                            .into(holder.messageReceiverPicture);
+                    Picasso.get().load(messages.getMessage()).placeholder(R.drawable.profile_image).into(holder.messageReceiverPicture);
+
+                    // Hiện tên người gửi nếu là nhóm
+                    if (isGroupChat) {
+                        holder.senderName.setVisibility(View.VISIBLE);
+                        holder.senderName.setText(messages.getName());
+                    }
                 }
                 break;
 
-
             case "pdf":
             case "docx":
-                // 1. Xác định tên hiển thị và đuôi file
                 String typeLabel = fromMessageType.equals("pdf") ? "PDF" : "MS Word";
-                String fileExtension = fromMessageType.equals("pdf") ? ".pdf" : ".docx";
                 String fileIcon = "📄";
 
-                // Tạo tên file duy nhất để khi tải về không bị trùng (Ví dụ: File_1702345678.pdf)
-                String fileName = "File_" + System.currentTimeMillis();
+                // Format hiển thị File
+                String displayText = fileIcon + " <b>" + typeLabel + " File</b><br><small>(Nhấn để mở)</small><br>" +
+                        "<small><font color='#e0e0e0'>" + messages.getTime() + "</font></small>";
 
-                String displayText = fileIcon + " " + typeLabel + "\n(Nhấn để mở)";
+                String displayTextReceiver = fileIcon + " <b>" + typeLabel + " File</b><br><small>(Nhấn để mở)</small><br>" +
+                        "<small><font color='#757575'>" + messages.getTime() + "</font></small>";
 
                 if (fromUserID.equals(currentUserId)) {
-                    // --- PHÍA NGƯỜI GỬI (SENDER) ---
+                    // SENDER FILE
                     holder.senderMessageText.setVisibility(View.VISIBLE);
                     holder.senderMessageText.setBackgroundResource(R.drawable.sender_message_layout);
-                    holder.senderMessageText.setTextColor(Color.BLACK);
-                    holder.senderMessageText.setText(displayText);
+                    holder.senderMessageText.setTextColor(Color.WHITE);
+                    holder.senderMessageText.setText(android.text.Html.fromHtml(displayText));
 
-                    // 👉 SỰ KIỆN CLICK: Gọi hàm downloadFile
-                    holder.senderMessageText.setOnClickListener(v -> {
-                        downloadFile(
-                                holder.itemView.getContext(),
-                                fileName,
-                                fileExtension,
-                                Environment.DIRECTORY_DOWNLOADS,
-                                messages.getMessage() // Link URL từ Firebase
-                        );
-                    });
+                    holder.senderMessageText.setOnClickListener(v -> downloadFile(holder.itemView.getContext(), messages.getMessage()));
 
                     holder.senderMessageText.setOnLongClickListener(v -> {
                         showDeleteConfirmationDialog(holder.itemView.getContext(), messages.getMessageID());
                         return true;
                     });
-
                 } else {
-                    // --- PHÍA NGƯỜI NHẬN (RECEIVER) ---
-                    holder.receiverProfileImage.setVisibility(View.VISIBLE); // Hiện Avatar
+                    // RECEIVER FILE
+                    holder.receiverProfileImage.setVisibility(View.VISIBLE);
                     holder.receiverMessageText.setVisibility(View.VISIBLE);
                     holder.receiverMessageText.setBackgroundResource(R.drawable.receiver_messager_layout);
                     holder.receiverMessageText.setTextColor(Color.BLACK);
-                    holder.receiverMessageText.setText(displayText);
+                    holder.receiverMessageText.setText(android.text.Html.fromHtml(displayTextReceiver));
 
-                    // 👉 SỰ KIỆN CLICK: Gọi hàm downloadFile
-                    holder.receiverMessageText.setOnClickListener(v -> {
-                        downloadFile(
-                                holder.itemView.getContext(),
-                                fileName,
-                                fileExtension,
-                                Environment.DIRECTORY_DOWNLOADS,
-                                messages.getMessage() // Link URL từ Firebase
-                        );
-                    });
+                    holder.receiverMessageText.setOnClickListener(v -> downloadFile(holder.itemView.getContext(), messages.getMessage()));
+
+                    // Hiện tên người gửi nếu là nhóm
+                    if (isGroupChat) {
+                        holder.senderName.setVisibility(View.VISIBLE);
+                        holder.senderName.setText(messages.getName());
+                    }
                 }
                 break;
-            case "deleted":
-                // ... (reset các view khác)
 
-                // 🚨 QUAN TRỌNG: Hiển thị ở giữa hoặc tùy thuộc vào người đang xem
+            case "deleted":
+                // Xử lý tin nhắn đã thu hồi
+                String deletedText = "<i>🚫 Tin nhắn đã bị thu hồi</i>";
+
                 if (fromUserID.equals(currentUserId)) {
-                    // Người gửi: Tái sử dụng senderMessageText để giữ lề phải (hoặc căn giữa)
                     holder.senderMessageText.setVisibility(View.VISIBLE);
-                    holder.senderMessageText.setBackground(null); // Xóa background bong bóng
-                    holder.senderMessageText.setText("🚫 Tin nhắn đã bị thu hồi (Bạn)");
-                    holder.senderMessageText.setTextColor(Color.GRAY);
+                    holder.senderMessageText.setBackgroundResource(R.drawable.sender_message_layout);
+                    holder.senderMessageText.setTextColor(Color.LTGRAY);
+                    holder.senderMessageText.setText(android.text.Html.fromHtml(deletedText));
                 } else {
-                    // Người nhận: Tái sử dụng receiverMessageText
+                    holder.receiverProfileImage.setVisibility(View.VISIBLE);
                     holder.receiverMessageText.setVisibility(View.VISIBLE);
-                    holder.receiverMessageText.setBackground(null);
-                    holder.receiverMessageText.setText("🚫 Tin nhắn đã bị thu hồi");
+                    holder.receiverMessageText.setBackgroundResource(R.drawable.receiver_messager_layout);
                     holder.receiverMessageText.setTextColor(Color.GRAY);
+                    holder.receiverMessageText.setText(android.text.Html.fromHtml(deletedText));
+
+                    if (isGroupChat) {
+                        holder.senderName.setVisibility(View.VISIBLE);
+                        holder.senderName.setText(messages.getName());
+                    }
                 }
                 break;
         }
@@ -228,37 +253,9 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
         return userMessagesList.size();
     }
 
-    // 📂 Mở file PDF/DOCX an toàn hơn
-    private void openFile(android.content.Context context, String url, String mimeType) {
-        // 1. Kiểm tra URL/MIME type hợp lệ
-        if (url == null || url.isEmpty() || mimeType == null || mimeType.isEmpty()) {
-            Toast.makeText(context, "URL hoặc loại tệp không hợp lệ.", Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        // 2. Tạo Intent và thiết lập MIME type chính xác
-        Intent intent = new Intent(Intent.ACTION_VIEW);
-        // Sử dụng setDataAndType để gắn cả URI và loại tệp
-        intent.setDataAndType(Uri.parse(url), mimeType);
-
-        // 3. Thêm cờ NEW_TASK (quan trọng khi gọi startActivity từ Adapter)
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-        // Loại bỏ FLAG_GRANT_READ_URI_PERMISSION vì đây là URL công khai (http/https)
-
-        try {
-            // 4. Mở Chooser để người dùng chọn ứng dụng
-            context.startActivity(Intent.createChooser(intent, "Chọn ứng dụng để mở tệp"));
-        } catch (android.content.ActivityNotFoundException e) {
-            // 5. Xử lý lỗi nếu không tìm thấy ứng dụng
-            Toast.makeText(context, "Không tìm thấy ứng dụng nào phù hợp để mở tệp này.", Toast.LENGTH_LONG).show();
-        }
-    }
-
-
+    // --- VIEWHOLDER ---
     public static class MessageViewHolder extends RecyclerView.ViewHolder {
-
-        public TextView senderMessageText, receiverMessageText;
+        public TextView senderMessageText, receiverMessageText, senderName;
         public CircleImageView receiverProfileImage;
         public ImageView messageSenderPicture, messageReceiverPicture;
 
@@ -268,55 +265,53 @@ public class MessageAdapter extends RecyclerView.Adapter<MessageAdapter.MessageV
             senderMessageText = itemView.findViewById(R.id.sender_message_text);
             receiverMessageText = itemView.findViewById(R.id.receiver_message_text);
             receiverProfileImage = itemView.findViewById(R.id.message_profile_image);
-
             messageSenderPicture = itemView.findViewById(R.id.message_sender_image_view);
             messageReceiverPicture = itemView.findViewById(R.id.message_receiver_image_view);
+
+            // Ánh xạ Tên người gửi (Bắt buộc phải có ID này trong custom_messages_layout.xml)
+            senderName = itemView.findViewById(R.id.message_sender_name);
         }
     }
 
-    private void downloadFile(Context context, String fileName, String fileExtension, String destinationDirectory, String url) {
+    // --- CÁC HÀM HỖ TRỢ ---
 
+    private void downloadFile(Context context, String url) {
         if (url == null || url.isEmpty()) {
-            Toast.makeText(context, "Link file lỗi!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "Link lỗi!", Toast.LENGTH_SHORT).show();
             return;
         }
 
-        // 1. Ép dùng HTTPS
-        if (url.startsWith("http://")) {
-            url = url.replace("http://", "https://");
-        }
+        // Ép về HTTPS để bảo mật và mở được trên Google Docs
+        if (url.startsWith("http://")) url = url.replace("http://", "https://");
 
         try {
-            // 2. TẠO MAGIC LINK: Dùng Google Docs Viewer
-            // Google sẽ tự tải file của bạn về và hiển thị nó trên trang web
-            String googleDocsUrl = "https://docs.google.com/viewer?embedded=true&url=" + url;
-
-            Uri uri = Uri.parse(googleDocsUrl);
-
-            // 3. Mở trình duyệt
+            // Mở link bằng Google Docs Viewer
+            Uri uri = Uri.parse("https://docs.google.com/viewer?embedded=true&url=" + url);
             Intent intent = new Intent(Intent.ACTION_VIEW, uri);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
-
-            Toast.makeText(context, "Đang mở tài liệu...", Toast.LENGTH_SHORT).show();
-
         } catch (Exception e) {
-            Toast.makeText(context, "Không thể mở trình duyệt!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "Không thể mở file", Toast.LENGTH_SHORT).show();
         }
     }
 
     private void showDeleteConfirmationDialog(Context context, String messageId) {
         new AlertDialog.Builder(context)
-                .setTitle("Thu hồi Tin nhắn")
+                .setTitle("Thu hồi tin nhắn")
                 .setMessage("Bạn có chắc chắn muốn thu hồi tin nhắn này cho mọi người?")
                 .setPositiveButton("Thu hồi", (dialog, which) -> {
-                    // Chuyển Context về Activity để gọi hàm chính
+
+                    // 1. Nếu đang ở Chat Cá Nhân
                     if (context instanceof ChatActivity) {
                         ((ChatActivity) context).deleteMessageForEveryone(messageId);
                     }
+                    // 2. THÊM ĐOẠN NÀY: Nếu đang ở Chat Nhóm
+                    else if (context instanceof GroupChatActivity) {
+                        ((GroupChatActivity) context).deleteMessageForEveryone(messageId);
+                    }
+
                 })
                 .setNegativeButton("Hủy", null)
                 .show();
     }
-
 }

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_chat"
+        android:icon="@drawable/messenger"
+        android:title="Chats" />
+
+    <item
+        android:id="@+id/nav_groups"
+        android:icon="@drawable/group"
+        android:title="Groups" />
+
+    <item
+        android:id="@+id/nav_profile"
+        android:icon="@drawable/contact"
+        android:title="Contacts" />
+
+    <item
+        android:id="@+id/nav_more"
+        android:icon="@drawable/request"
+        android:title="Requests" />
+</menu>

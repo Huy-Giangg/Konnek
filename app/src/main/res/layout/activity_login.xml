@@ -21,10 +21,11 @@
                 android:id="@+id/login_image"
                 android:layout_width="match_parent"
                 android:layout_height="250dp"
-                android:src="@drawable/login_photo"
+                android:src="@drawable/logowrapper"
                 android:layout_alignParentStart="true"
                 android:layout_alignParentTop="true"
-                android:scaleType="fitCenter">
+                android:scaleType="fitCenter"
+                android:layout_marginTop="20dp">
             </ImageView>
             
             <EditText
@@ -32,7 +33,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/login_image"
-                android:hint="Email..."
+                android:hint="Email"
                 android:inputType="textEmailAddress"
                 android:background="@drawable/inputs"
                 android:padding="4dp"
@@ -47,7 +48,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/login_email"
-                android:hint="Password..."
+                android:hint="Password"
                 android:inputType="textPassword"  android:background="@drawable/inputs"
                 android:padding="4dp"
                 android:drawableStart="@drawable/password"
@@ -64,7 +65,8 @@
                 android:text="Forget Password ?"
                 android:inputType="textEmailAddress"
                 android:layout_centerHorizontal="true"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="10dp"
                 android:layout_marginLeft="15dp"
                 android:layout_marginRight="23dp"
                 android:textAlignment="textEnd"
@@ -84,60 +86,102 @@
                 android:layout_marginRight="17dp"
                 android:text="Login"
                 android:textAllCaps="true"
-                android:textSize="24sp"
+                android:textSize="18sp"
                 android:background="@drawable/buttons"
                 android:textColor="@color/white">
             </Button>
 
-            <TextView
-                android:id="@+id/need_new_account_link"
+            <LinearLayout
+                android:id="@+id/need_new_account"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/login_button"
-                android:text="Need new Account?"
-                android:inputType="textEmailAddress"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="2dp"
-                android:layout_marginLeft="15dp"
-                android:layout_marginRight="23dp"
-                android:textAlignment="center"
-                android:textSize="17sp"
-                android:textStyle="bold"
-                android:textColor="@color/colorPrimary">
-            </TextView>
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="6dp"
+                android:gravity="center"
+                android:orientation="horizontal">
 
-            <TextView
-                android:id="@+id/login_using"
+                <TextView
+                    android:id="@+id/login_using"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/need_new_account_link"
+                    android:layout_centerHorizontal="true"
+                    android:inputType="textEmailAddress"
+
+                    android:text="Need a new Account?"
+                    android:textAlignment="center"
+                    android:textSize="17sp"
+                    android:textStyle="bold"></TextView>
+
+                <TextView
+                    android:id="@+id/need_new_account_link"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+
+                    android:layout_centerHorizontal="true"
+                    android:inputType="textEmailAddress"
+
+                    android:text="Sign Up"
+                    android:textAlignment="center"
+                    android:textColor="@color/colorPrimary"
+                    android:textSize="17sp"
+                    android:textStyle="bold"></TextView>
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/or_login_with"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_below="@+id/need_new_account_link"
-                android:text="or login using your"
-                android:inputType="textEmailAddress"
-                android:layout_centerHorizontal="true"
-                android:layout_marginTop="10dp"
-                android:layout_marginLeft="15dp"
-                android:layout_marginRight="23dp"
-                android:textAlignment="center"
-                android:textSize="17sp"
-                android:textStyle="bold">
-            </TextView>
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="16dp"
+                android:layout_below="@+id/need_new_account">
+
+                <!-- Line trái -->
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#D0D3D4" />
+
+                <!-- Text ở giữa -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="10dp"
+                    android:layout_marginEnd="10dp"
+                    android:text="OR LOGIN WITH"
+                    android:textColor="#8E8E93"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <!-- Line phải -->
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"
+                    android:background="#D0D3D4" />
+
+            </LinearLayout>
+
 
             <Button
                 android:id="@+id/phone_login_button"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_below="@+id/login_using"
-                android:padding="4dp"
-                android:layout_marginTop="4dp"
+                android:layout_below="@+id/or_login_with"
                 android:layout_marginLeft="17dp"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="4dp"
                 android:layout_marginRight="17dp"
-                android:text="Phone"
-                android:textAllCaps="true"
-                android:textSize="14sp"
-                android:background="@drawable/buttons"
-                android:textColor="@color/white"
-                android:drawableStart="@drawable/phone">
-            </Button>
+                android:padding="4dp"
+                android:text="Continue with Phone"
+                android:textAllCaps="false"
+                android:textColor="#2C3E50"
+                android:textSize="18dp"
+                android:background="@drawable/phonebutton"
+                android:drawableStart="@drawable/phone" />
 
         </RelativeLayout>
     </ScrollView>

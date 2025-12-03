@@ -72,6 +72,5 @@ dependencies {
 
     //Token
     implementation("com.google.firebase:firebase-messaging:24.0.0")
-
     implementation("androidx.lifecycle:lifecycle-process:2.6.2")
 }

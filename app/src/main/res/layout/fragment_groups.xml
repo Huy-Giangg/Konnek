@@ -6,8 +6,8 @@
     tools:context=".GroupsFragment">
 
 
-    <ListView
-        android:id="@+id/list_view"
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/groups_list"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 </RelativeLayout>

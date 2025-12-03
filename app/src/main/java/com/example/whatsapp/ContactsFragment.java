@@ -1,5 +1,6 @@
 package com.example.whatsapp;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -24,69 +25,35 @@ import com.squareup.picasso.Picasso;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
-/**
- * A simple {@link Fragment} subclass.
- * Use the {@link ContactsFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
 public class ContactsFragment extends Fragment {
 
-    private View contactView;
+    private View ContactsView;
     private RecyclerView myContactsList;
-    private DatabaseReference contactsRef, usersRef;
+    private DatabaseReference ContactsRef, UsersRef;
     private FirebaseAuth mAuth;
     private String currentUserID;
-
-    private static final String ARG_PARAM1 = "param1";
-    private static final String ARG_PARAM2 = "param2";
-
-    private String mParam1;
-    private String mParam2;
 
     public ContactsFragment() {
         // Required empty public constructor
     }
 
-    public static ContactsFragment newInstance(String param1, String param2) {
-        ContactsFragment fragment = new ContactsFragment();
-        Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
-        fragment.setArguments(args);
-        return fragment;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getArguments() != null) {
-            mParam1 = getArguments().getString(ARG_PARAM1);
-            mParam2 = getArguments().getString(ARG_PARAM2);
-        }
-    }
-
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
+        ContactsView = inflater.inflate(R.layout.fragment_contacts, container, false);
 
-        contactView = inflater.inflate(R.layout.fragment_contacts, container, false);
-
-        myContactsList = contactView.findViewById(R.id.contacts_list);
+        // Khởi tạo RecyclerView
+        myContactsList = ContactsView.findViewById(R.id.contacts_list);
         myContactsList.setLayoutManager(new LinearLayoutManager(getContext()));
 
         mAuth = FirebaseAuth.getInstance();
-        if (mAuth.getCurrentUser() != null) {
-            currentUserID = mAuth.getCurrentUser().getUid();
-            contactsRef = FirebaseDatabase.getInstance().getReference()
-                    .child("Contacts").child(currentUserID);
-        } else {
-            currentUserID = null;
-            contactsRef = FirebaseDatabase.getInstance().getReference().child("Contacts");
-        }
+        currentUserID = mAuth.getCurrentUser().getUid();
 
-        usersRef = FirebaseDatabase.getInstance().getReference().child("Users");
+        // Tham chiếu Database
+        ContactsRef = FirebaseDatabase.getInstance().getReference().child("Contacts").child(currentUserID);
+        UsersRef = FirebaseDatabase.getInstance().getReference().child("Users");
 
-        return contactView;
+        return ContactsView;
     }
 
     @Override
@@ -95,76 +62,83 @@ public class ContactsFragment extends Fragment {
 
         FirebaseRecyclerOptions<Contacts> options =
                 new FirebaseRecyclerOptions.Builder<Contacts>()
-                        .setQuery(contactsRef, Contacts.class)
+                        .setQuery(ContactsRef, Contacts.class)
                         .build();
 
-        FirebaseRecyclerAdapter<Contacts, ContactViewHolder> adapter =
-                new FirebaseRecyclerAdapter<Contacts, ContactViewHolder>(options) {
+        FirebaseRecyclerAdapter<Contacts, ContactsViewHolder> adapter =
+                new FirebaseRecyclerAdapter<Contacts, ContactsViewHolder>(options) {
                     @Override
-                    protected void onBindViewHolder(@NonNull final ContactViewHolder holder,
-                                                    int position, @NonNull Contacts model) {
+                    protected void onBindViewHolder(@NonNull final ContactsViewHolder holder, int position, @NonNull Contacts model) {
 
+                        // Lấy ID của bạn bè
                         final String userIDs = getRef(position).getKey();
 
-                        usersRef.child(userIDs).addValueEventListener(new ValueEventListener() {
+                        holder.time.setVisibility(View.GONE);
+                        holder.unreadBadge.setVisibility(View.GONE);
+
+                        // Lấy thông tin chi tiết từ node Users
+                        UsersRef.child(userIDs).addValueEventListener(new ValueEventListener() {
                             @Override
-                            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                                if (snapshot.exists()) {
-                                    if(snapshot.child("userState").hasChild("state")){
-                                        String date = snapshot.child("userState").child("date").getValue().toString();
-                                        String time = snapshot.child("userState").child("time").getValue().toString();
-                                        String state = snapshot.child("userState").child("state").getValue().toString();
+                            public void onDataChange(DataSnapshot dataSnapshot) {
+                                if (dataSnapshot.exists()) {
 
-                                        if(state.equals("online")){
-                                            holder.onlineIcon.setVisibility(View.VISIBLE);
-                                        }else if(state.equals("offline")){
-                                            holder.onlineIcon.setVisibility(View.INVISIBLE);
+                                    // 1. Hiển thị Tên & Status (Bio)
+                                    if (dataSnapshot.hasChild("name")) {
+                                        String userName = dataSnapshot.child("name").getValue().toString();
+                                        String userStatus = dataSnapshot.child("status").getValue().toString();
+
+                                        holder.userName.setText(userName);
+                                        holder.userStatus.setText(userStatus);
+                                    }
+
+                                    // 2. Hiển thị Ảnh đại diện
+                                    if (dataSnapshot.hasChild("image")) {
+                                        String userImage = dataSnapshot.child("image").getValue().toString();
+                                        Picasso.get().load(userImage).placeholder(R.drawable.profile_image).into(holder.profileImage);
+                                    }
+
+                                    // 3. XỬ LÝ TRẠNG THÁI ONLINE (Chấm xanh)
+                                    if (dataSnapshot.hasChild("userState")) {
+                                        String state = dataSnapshot.child("userState").child("state").getValue().toString();
+
+                                        if (state.equals("online")) {
+                                            holder.onlineIcon.setVisibility(View.VISIBLE); // Hiện chấm xanh
+                                        } else {
+                                            holder.onlineIcon.setVisibility(View.GONE);    // Ẩn chấm xanh
                                         }
-                                    }else{
-                                        holder.onlineIcon.setVisibility(View.INVISIBLE);
-                                    }
-
-                                    // Lấy thông tin người dùng
-                                    if (snapshot.hasChild("image")) {
-                                        String profileImage = snapshot.child("image")
-                                                .getValue(String.class);
-                                        String profileName = snapshot.child("name")
-                                                .getValue(String.class);
-                                        String profileStatus = snapshot.child("status")
-                                                .getValue(String.class);
-
-                                        holder.userName.setText(profileName);
-                                        holder.userStatus.setText(profileStatus);
-                                        Picasso.get()
-                                                .load(profileImage)
-                                                .placeholder(R.drawable.profile_image)
-                                                .into(holder.profileImage);
                                     } else {
-                                        String profileName = snapshot.child("name")
-                                                .getValue(String.class);
-                                        String profileStatus = snapshot.child("status")
-                                                .getValue(String.class);
-
-                                        holder.userName.setText(profileName);
-                                        holder.userStatus.setText(profileStatus);
+                                        holder.onlineIcon.setVisibility(View.GONE);
                                     }
+
+                                    // 4. Sự kiện click để nhắn tin
+                                    holder.itemView.setOnClickListener(new View.OnClickListener() {
+                                        @Override
+                                        public void onClick(View view) {
+                                            String visit_image = "default_image";
+                                            if(dataSnapshot.hasChild("image")){
+                                                visit_image = dataSnapshot.child("image").getValue().toString();
+                                            }
+
+                                            Intent chatIntent = new Intent(getContext(), ChatActivity.class);
+                                            chatIntent.putExtra("visit_user_id", userIDs);
+                                            chatIntent.putExtra("visit_user_name", holder.userName.getText().toString());
+                                            chatIntent.putExtra("visit_image", visit_image);
+                                            startActivity(chatIntent);
+                                        }
+                                    });
                                 }
                             }
 
                             @Override
-                            public void onCancelled(@NonNull DatabaseError error) {
-                                // Không cần xử lý
-                            }
+                            public void onCancelled(DatabaseError databaseError) { }
                         });
                     }
 
                     @NonNull
                     @Override
-                    public ContactViewHolder onCreateViewHolder(@NonNull ViewGroup parent,
-                                                                int viewType) {
-                        View view = LayoutInflater.from(parent.getContext())
-                                .inflate(R.layout.users_display_layout, parent, false);
-                        return new ContactViewHolder(view);
+                    public ContactsViewHolder onCreateViewHolder(@NonNull ViewGroup viewGroup, int i) {
+                        View view = LayoutInflater.from(viewGroup.getContext()).inflate(R.layout.users_display_layout, viewGroup, false);
+                        return new ContactsViewHolder(view);
                     }
                 };
 
@@ -172,17 +146,23 @@ public class ContactsFragment extends Fragment {
         adapter.startListening();
     }
 
-    public static class ContactViewHolder extends RecyclerView.ViewHolder {
+    // Class ViewHolder để ánh xạ view
+    public static class ContactsViewHolder extends RecyclerView.ViewHolder {
         TextView userName, userStatus;
         CircleImageView profileImage;
-        ImageView onlineIcon;
+        ImageView onlineIcon; // Icon chấm xanh
 
-        public ContactViewHolder(@NonNull View itemView) {
+        TextView time, unreadBadge;
+
+        public ContactsViewHolder(@NonNull View itemView) {
             super(itemView);
             userName = itemView.findViewById(R.id.user_profile_name);
             userStatus = itemView.findViewById(R.id.user_status);
             profileImage = itemView.findViewById(R.id.users_profile_image);
-            onlineIcon = itemView.findViewById(R.id.user_online_status);
+            onlineIcon = itemView.findViewById(R.id.user_online_status); // Ánh xạ chấm xanh
+
+            time = itemView.findViewById(R.id.last_message_time);
+            unreadBadge = itemView.findViewById(R.id.unread_message_count);
         }
     }
 }

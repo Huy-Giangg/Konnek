@@ -11,10 +11,11 @@
         android:id="@+id/register_image"
         android:layout_width="match_parent"
         android:layout_height="250dp"
-        android:src="@drawable/signup_photo"
+        android:src="@drawable/logowrapper"
         android:layout_alignParentStart="true"
         android:layout_alignParentTop="true"
-        android:scaleType="fitCenter">
+        android:scaleType="fitCenter"
+        android:layout_marginTop="20dp">
     </ImageView>
 
     <EditText
@@ -53,30 +54,52 @@
         android:layout_height="wrap_content"
         android:layout_below="@+id/register_password"
         android:padding="4dp"
-        android:layout_marginTop="10dp"
+        android:layout_marginTop="20dp"
         android:layout_marginLeft="17dp"
         android:layout_marginRight="17dp"
-        android:text="Create Account"
+        android:text="sign up"
         android:textAllCaps="true"
-        android:textSize="24sp"
+        android:textSize="18sp"
         android:background="@drawable/buttons"
         android:textColor="@color/white">
     </Button>
 
-    <TextView
-        android:id="@+id/already_have_account_link"
+
+    <LinearLayout
+        android:id="@+id/need_new_account"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_below="@+id/register_button"
-        android:text="Already have an Account?"
-        android:inputType="textEmailAddress"
-        android:layout_centerHorizontal="true"
-        android:layout_marginTop="2dp"
-        android:layout_marginLeft="15dp"
-        android:layout_marginRight="23dp"
-        android:textAlignment="center"
-        android:textSize="17sp"
-        android:textStyle="bold"
-        android:textColor="@color/colorPrimary">
-    </TextView>
+        android:layout_marginTop="20dp"
+        android:layout_marginBottom="10dp"
+        android:gravity="center"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/login_using"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/need_new_account_link"
+            android:layout_centerHorizontal="true"
+            android:inputType="textEmailAddress"
+
+            android:text="Already have an Account?"
+            android:textAlignment="center"
+            android:textSize="17sp"
+            android:textStyle="bold"></TextView>
+
+        <TextView
+            android:id="@+id/already_have_account_link"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@+id/register_button"
+            android:text="Logn In"
+            android:inputType="textEmailAddress"
+            android:layout_centerHorizontal="true"
+            android:textAlignment="center"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/colorPrimary">
+        </TextView>
+    </LinearLayout>
 </RelativeLayout>

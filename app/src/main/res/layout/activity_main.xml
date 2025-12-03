@@ -8,8 +8,6 @@
     tools:context=".MainActivity"
     android:background="@color/colorAccent">
 
-
-
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/appBarLayout"
         android:layout_width="match_parent"
@@ -17,24 +15,46 @@
         <include
             android:id="@+id/main_page_toolbar"
             layout="@layout/app_bar_layout">
-
         </include>
+    </com.google.android.material.appbar.AppBarLayout>
 
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/main_tabs"
+<!--    <com.google.android.material.tabs.TabLayout-->
+<!--        android:id="@+id/main_tabs"-->
+<!--        android:layout_width="match_parent"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"-->
+<!--        android:background="@color/colorPrimary"-->
+<!--        android:layout_alignParentBottom="true"> </com.google.android.material.tabs.TabLayout>-->
+
+    <androidx.cardview.widget.CardView
+        android:id="@+id/bottom_bar_container"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_margin="20dp"
+        app:cardCornerRadius="20dp"
+        app:cardElevation="8dp">
+
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_navigation"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-            android:background="@color/colorPrimary">
-        </com.google.android.material.tabs.TabLayout>
-    </com.google.android.material.appbar.AppBarLayout>
+            android:background="#FFFFFF"
+            app:menu="@menu/bottom_nav_menu"
+            app:labelVisibilityMode="labeled"
+            app:itemPaddingBottom="16dp"
+            app:itemPaddingTop="16dp"
+            app:itemIconTint="@color/selector_tab_color"
+            app:itemTextColor="@color/selector_tab_color"
+            app:itemBackground="@drawable/selector_tab_background" />
+
+    </androidx.cardview.widget.CardView>
 
     <androidx.viewpager.widget.ViewPager
         android:id="@+id/main_tabs_pager"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_below="@+id/appBarLayout">
-
-    </androidx.viewpager.widget.ViewPager>
+        android:layout_height="match_parent"
+        android:layout_below="@+id/appBarLayout"
+        android:layout_above="@+id/bottom_bar_container"> </androidx.viewpager.widget.ViewPager>
 
 </RelativeLayout>

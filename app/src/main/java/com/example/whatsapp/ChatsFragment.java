@@ -1,6 +1,8 @@
 package com.example.whatsapp;
 
 import android.content.Intent;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.os.Bundle;
 
 import androidx.annotation.NonNull;
@@ -11,6 +13,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import com.firebase.ui.database.FirebaseRecyclerAdapter;
@@ -20,63 +23,22 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.Query;
 import com.google.firebase.database.ValueEventListener;
 import com.squareup.picasso.Picasso;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
-/**
- * A simple {@link Fragment} subclass.
- * Use the {@link ChatsFragment#newInstance} factory method to
- * create an instance of this fragment.
- */
 public class ChatsFragment extends Fragment {
 
     private View PrivatechatsView;
     private RecyclerView chatsList;
-    private DatabaseReference chatsRef, usersRef;
+    private DatabaseReference chatsRef, usersRef, messagesRef;
     private FirebaseAuth mAuth;
     private String currentUserID;
-    private String retImage = "default_image";
-
-    // TODO: Rename parameter arguments, choose names that match
-    // the fragment initialization parameters, e.g. ARG_ITEM_NUMBER
-    private static final String ARG_PARAM1 = "param1";
-    private static final String ARG_PARAM2 = "param2";
-
-    // TODO: Rename and change types of parameters
-    private String mParam1;
-    private String mParam2;
 
     public ChatsFragment() {
         // Required empty public constructor
-    }
-
-    /**
-     * Use this factory method to create a new instance of
-     * this fragment using the provided parameters.
-     *
-     * @param param1 Parameter 1.
-     * @param param2 Parameter 2.
-     * @return A new instance of fragment ChatsFragment.
-     */
-    // TODO: Rename and change types and number of parameters
-    public static ChatsFragment newInstance(String param1, String param2) {
-        ChatsFragment fragment = new ChatsFragment();
-        Bundle args = new Bundle();
-        args.putString(ARG_PARAM1, param1);
-        args.putString(ARG_PARAM2, param2);
-        fragment.setArguments(args);
-        return fragment;
-    }
-
-    @Override
-    public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        if (getArguments() != null) {
-            mParam1 = getArguments().getString(ARG_PARAM1);
-            mParam2 = getArguments().getString(ARG_PARAM2);
-        }
     }
 
     @Override
@@ -84,12 +46,24 @@ public class ChatsFragment extends Fragment {
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
         PrivatechatsView = inflater.inflate(R.layout.fragment_chats, container, false);
-        chatsList = (RecyclerView) PrivatechatsView.findViewById(R.id.chats_list);
-        chatsList.setLayoutManager(new LinearLayoutManager(getContext()));
+
         mAuth = FirebaseAuth.getInstance();
         currentUserID = mAuth.getCurrentUser().getUid();
-        chatsRef = FirebaseDatabase.getInstance().getReference().child("Contacts").child(currentUserID);
+
+        // 1. THAY ĐỔI QUAN TRỌNG: Trỏ vào node "Chatlist" để lấy danh sách đã sắp xếp thời gian
+        // (Thay vì node "Contacts" chỉ xếp theo tên)
+        chatsRef = FirebaseDatabase.getInstance().getReference().child("Chatlist").child(currentUserID);
+
         usersRef = FirebaseDatabase.getInstance().getReference().child("Users");
+        messagesRef = FirebaseDatabase.getInstance().getReference().child("Messages").child(currentUserID);
+
+        chatsList = (RecyclerView) PrivatechatsView.findViewById(R.id.chats_list);
+
+        // 2. THAY ĐỔI QUAN TRỌNG: Đảo ngược danh sách để tin mới nhất (Time lớn nhất) lên đầu
+        LinearLayoutManager layoutManager = new LinearLayoutManager(getContext());
+        layoutManager.setReverseLayout(true);
+        layoutManager.setStackFromEnd(true);
+        chatsList.setLayoutManager(layoutManager);
 
         return PrivatechatsView;
     }
@@ -98,61 +72,66 @@ public class ChatsFragment extends Fragment {
     public void onStart() {
         super.onStart();
 
-        FirebaseRecyclerOptions<Contacts> options
-                = new FirebaseRecyclerOptions.Builder<Contacts>()
-                .setQuery(chatsRef, Contacts.class)
-                .build();
-        FirebaseRecyclerAdapter<Contacts, ChatsViewHolder> adapter =
-                new FirebaseRecyclerAdapter<Contacts, ChatsViewHolder>(options) {
-                    @Override
-                    protected void onBindViewHolder(@NonNull ChatsViewHolder holder, int position, @NonNull Contacts model) {
+        // Sắp xếp theo thời gian
+        Query chatQuery = chatsRef.orderByChild("time");
 
+        // 1. ĐỔI Contacts.class THÀNH Chatlist.class
+        FirebaseRecyclerOptions<Chatlist> options
+                = new FirebaseRecyclerOptions.Builder<Chatlist>()
+                .setQuery(chatQuery, Chatlist.class)
+                .build();
+
+        // 2. ĐỔI ADAPTER SANG Chatlist
+        FirebaseRecyclerAdapter<Chatlist, ChatsViewHolder> adapter =
+                new FirebaseRecyclerAdapter<Chatlist, ChatsViewHolder>(options) {
+                    @Override
+                    protected void onBindViewHolder(@NonNull final ChatsViewHolder holder, int position, @NonNull Chatlist model) {
+
+                        // Lấy User ID từ Key của node
                         final String userIDs = getRef(position).getKey();
                         final String[] retImage = {"default_image"};
 
+                        // --- PHẦN LẤY DỮ LIỆU USER & TIN NHẮN GIỮ NGUYÊN ---
                         usersRef.child(userIDs).addValueEventListener(new ValueEventListener() {
                             @Override
                             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                                if(snapshot.exists()){
-                                    if(snapshot.hasChild("image")){
-                                       retImage[0] = snapshot.child("image").getValue().toString();
-                                        Picasso.get().load(retImage[0]).into(holder.profileImage);
+                                if (snapshot.exists()) {
+                                    if (snapshot.hasChild("image")) {
+                                        retImage[0] = snapshot.child("image").getValue().toString();
+                                        Picasso.get().load(retImage[0]).placeholder(R.drawable.profile_image).into(holder.profileImage);
                                     }
 
                                     final String retName = snapshot.child("name").getValue().toString();
-                                    final String retStatus = snapshot.child("status").getValue().toString();
                                     holder.userName.setText(retName);
 
-                                    if(snapshot.child("userState").hasChild("state")){
-                                        String date = snapshot.child("userState").child("date").getValue().toString();
-                                        String time = snapshot.child("userState").child("time").getValue().toString();
+                                    // Gọi hàm lastMessage
+                                    lastMessage(userIDs, holder.userStatus, holder.time, holder.unreadBadge);
+
+                                    // Online status logic... (Giữ nguyên)
+                                    if (snapshot.hasChild("userState")) {
                                         String state = snapshot.child("userState").child("state").getValue().toString();
-
-                                        if(state.equals("online")){
-                                            holder.userStatus.setText("Online");
-                                        }else if(state.equals("offline")){
-                                            holder.userStatus.setText("Last Seen: " + "\n" + date + " " + time);
+                                        if (state.equals("online")) {
+                                            holder.onlineIcon.setVisibility(View.VISIBLE);
+                                        } else {
+                                            holder.onlineIcon.setVisibility(View.GONE);
                                         }
-                                    }else{
-                                        holder.userStatus.setText("Offline");
+                                    } else {
+                                        holder.onlineIcon.setVisibility(View.GONE);
                                     }
-
-                                    holder.itemView.setOnClickListener(new View.OnClickListener() {
-                                        @Override
-                                        public void onClick(View v) {
-                                            Intent chatIntent = new Intent(getContext(), ChatActivity.class);
-                                            chatIntent.putExtra("visit_user_id", userIDs);
-                                            chatIntent.putExtra("visit_user_name", retName);
-                                            chatIntent.putExtra("visit_image", retImage[0]);
-                                            startActivity(chatIntent);
-                                        }
-                                    });
                                 }
                             }
-
                             @Override
-                            public void onCancelled(@NonNull DatabaseError error) {
+                            public void onCancelled(@NonNull DatabaseError error) { }
+                        });
 
+                        holder.itemView.setOnClickListener(new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                Intent chatIntent = new Intent(getContext(), ChatActivity.class);
+                                chatIntent.putExtra("visit_user_id", userIDs);
+                                chatIntent.putExtra("visit_user_name", holder.userName.getText().toString());
+                                chatIntent.putExtra("visit_image", retImage[0]);
+                                startActivity(chatIntent);
                             }
                         });
                     }
@@ -164,20 +143,113 @@ public class ChatsFragment extends Fragment {
                         return new ChatsViewHolder(view);
                     }
                 };
+
         chatsList.setAdapter(adapter);
         adapter.startListening();
     }
 
-    public static class ChatsViewHolder extends RecyclerView.ViewHolder{
+    // --- HÀM XỬ LÝ LOGIC TIN NHẮN CUỐI ---
+    private void lastMessage(final String chatUserId, final TextView lastMsgView, final TextView timeView, final TextView badgeView) {
+
+        // Truy vấn tin nhắn giữa mình và người kia
+        DatabaseReference reference = FirebaseDatabase.getInstance().getReference().child("Messages").child(currentUserID).child(chatUserId);
+
+        reference.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                String theLastMessage = "default";
+                String theLastTime = "";
+                int unreadCount = 0; // Biến đếm
+
+                if (snapshot.exists()) {
+                    for (DataSnapshot ds : snapshot.getChildren()) {
+                        // 1. Lấy nội dung tin cuối cùng (Code cũ)
+                        String type = "";
+                        if(ds.hasChild("type")){ type = ds.child("type").getValue().toString(); }
+
+                        String message = "";
+                        if(ds.hasChild("message")){ message = ds.child("message").getValue().toString(); }
+
+                        if(ds.hasChild("time")){ theLastTime = ds.child("time").getValue().toString(); }
+
+                        if (type.equals("text")) {
+                            theLastMessage = message;
+                        } else if (type.equals("image")) {
+                            theLastMessage = "[Hình ảnh]";
+                        } else if (type.equals("pdf") || type.equals("docx")) {
+                            theLastMessage = "[Tài liệu]";
+                        } else if (type.equals("deleted")) {
+                            theLastMessage = "🚫 Tin nhắn đã thu hồi";
+                        }
+
+                        // 2. LOGIC ĐẾM SỐ TIN CHƯA ĐỌC (MỚI)
+                        // Logic: Nếu tin nhắn gửi CHO MÌNH (to == currentUserID) và isSeen == false
+                        if (ds.hasChild("to") && ds.child("to").getValue().toString().equals(currentUserID)) {
+                            if (ds.hasChild("isSeen")) {
+                                boolean isSeen = (boolean) ds.child("isSeen").getValue();
+                                if (!isSeen) {
+                                    unreadCount++;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. Cập nhật giao diện
+                if ("default".equals(theLastMessage)) {
+                    lastMsgView.setText("Các bạn chưa trò chuyện");
+                    timeView.setText("");
+                    lastMsgView.setTypeface(null, Typeface.NORMAL);
+                } else {
+                    lastMsgView.setText(theLastMessage);
+                    timeView.setText(theLastTime);
+                }
+
+                // 4. HIỂN THỊ BADGE SỐ LƯỢNG
+                if (unreadCount > 0) {
+                    badgeView.setVisibility(View.VISIBLE);
+                    badgeView.setText(String.valueOf(unreadCount));
+
+                    // Bôi đậm tin nhắn chưa đọc
+                    lastMsgView.setTypeface(null, Typeface.BOLD);
+                    lastMsgView.setTextColor(Color.BLACK);
+                    timeView.setTextColor(Color.parseColor("#03A9F4")); // Màu xanh
+                } else {
+                    badgeView.setVisibility(View.GONE);
+
+                    // Trả về bình thường
+                    lastMsgView.setTypeface(null, Typeface.NORMAL);
+                    lastMsgView.setTextColor(Color.GRAY);
+                    timeView.setTextColor(Color.GRAY);
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) { }
+        });
+    }
+
+    // --- VIEWHOLDER ---
+    public static class ChatsViewHolder extends RecyclerView.ViewHolder {
 
         CircleImageView profileImage;
-        TextView userStatus, userName;
+        TextView userName, userStatus; // userStatus đóng vai trò là Last Message
+        TextView time, unreadBadge;
+        ImageView onlineIcon;
+
         public ChatsViewHolder(@NonNull View itemView) {
             super(itemView);
 
             profileImage = itemView.findViewById(R.id.users_profile_image);
             userName = itemView.findViewById(R.id.user_profile_name);
+
+            // Trong layout mới, ID user_status dùng để hiện Last Message
             userStatus = itemView.findViewById(R.id.user_status);
+
+            // Ánh xạ 2 view mới thêm trong file users_display_layout.xml
+            time = itemView.findViewById(R.id.last_message_time);
+            unreadBadge = itemView.findViewById(R.id.unread_message_count);
+            onlineIcon = itemView.findViewById(R.id.user_online_status);
         }
     }
 }

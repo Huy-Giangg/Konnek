@@ -25,6 +25,7 @@ import com.google.firebase.database.ValueEventListener;
 import com.squareup.picasso.Picasso;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import de.hdodenhof.circleimageview.CircleImageView;
 
@@ -71,7 +72,7 @@ public class ProfileActivity extends AppCompatActivity {
 
         if (getIntent().getExtras() != null && getIntent().getExtras().get("visit_user_id") != null) {
             receiverUserID = getIntent().getExtras().get("visit_user_id").toString();
-            Toast.makeText(this, "User ID: " + receiverUserID, Toast.LENGTH_SHORT).show();
+
         }
 
         // 3. Khởi tạo UI
@@ -284,38 +285,49 @@ public class ProfileActivity extends AppCompatActivity {
      * Gửi yêu cầu trò chuyện: sender -> sent, receiver -> received.
      */
     private void sendChatRequest() {
-        chatRequestsRef.child(senderUserID).child(receiverUserID).child("request_type").setValue("sent")
-                .addOnCompleteListener(task -> {
-                    if (task.isSuccessful()) {
-                        chatRequestsRef.child(receiverUserID).child(senderUserID).child("request_type").setValue("received")
-                                .addOnCompleteListener(task2 -> {
-                                    if (task2.isSuccessful()) {
+        // Tạm thời vô hiệu hóa nút để tránh bấm nhiều lần
+        sendMessageRequestButton.setEnabled(false);
 
-                                        HashMap<String, String> chatnotificationMap = new HashMap<>();
-                                        chatnotificationMap.put("from", senderUserID);
-                                        chatnotificationMap.put("type", "request");
-                                        NotificationRef.child(receiverUserID).push().setValue(chatnotificationMap)
-                                                        .addOnCompleteListener(new OnCompleteListener<Void>() {
-                                                            @Override
-                                                            public void onComplete(@NonNull Task<Void> task) {
-                                                                if(task.isSuccessful()){
-                                                                    sendMessageRequestButton.setEnabled(true);
-                                                                    currentStatus = "request_sent";
-                                                                    sendMessageRequestButton.setText("Cancel Chat Request");
-                                                                    Toast.makeText(ProfileActivity.this, "Chat Request Sent.", Toast.LENGTH_SHORT).show();
-                                                                }
-                                                            }
-                                                        });
-                                    } else {
-                                        Toast.makeText(ProfileActivity.this, "Failed to update receiver status.", Toast.LENGTH_SHORT).show();
-                                        sendMessageRequestButton.setEnabled(true);
-                                    }
-                                });
-                    } else {
-                        Toast.makeText(ProfileActivity.this, "Failed to send request.", Toast.LENGTH_SHORT).show();
-                        sendMessageRequestButton.setEnabled(true);
-                    }
-                });
+        DatabaseReference rootRef = FirebaseDatabase.getInstance().getReference();
+
+        // 1. Tạo sẵn Key cho thông báo (để đưa vào map cập nhật)
+        String notificationKey = rootRef.child("Notifications").child(receiverUserID).push().getKey();
+
+        // 2. Chuẩn bị dữ liệu Thông báo
+        HashMap<String, String> notificationData = new HashMap<>();
+        notificationData.put("from", senderUserID);
+        notificationData.put("type", "request");
+
+        // 3. Tạo Map để cập nhật đồng thời nhiều đường dẫn (Atomic Update)
+        Map<String, Object> updatePaths = new HashMap<>();
+
+        // Đường dẫn 1: Set trạng thái "sent" cho người gửi
+        updatePaths.put("Chat Requests/" + senderUserID + "/" + receiverUserID + "/request_type", "sent");
+
+        // Đường dẫn 2: Set trạng thái "received" cho người nhận
+        updatePaths.put("Chat Requests/" + receiverUserID + "/" + senderUserID + "/request_type", "received");
+
+        // Đường dẫn 3: Thêm thông báo cho người nhận
+        updatePaths.put("Notifications/" + receiverUserID + "/" + notificationKey, notificationData);
+
+        // 4. Thực hiện cập nhật 1 lần duy nhất
+        rootRef.updateChildren(updatePaths).addOnCompleteListener(new OnCompleteListener<Void>() {
+            @Override
+            public void onComplete(@NonNull Task<Void> task) {
+                if (task.isSuccessful()) {
+                    // Cập nhật UI khi thành công
+                    sendMessageRequestButton.setEnabled(true);
+                    currentStatus = "request_sent";
+                    sendMessageRequestButton.setText("Cancel Chat Request");
+                    Toast.makeText(ProfileActivity.this, "Chat Request Sent.", Toast.LENGTH_SHORT).show();
+                } else {
+                    // Xử lý lỗi
+                    sendMessageRequestButton.setEnabled(true);
+                    String error = task.getException() != null ? task.getException().getMessage() : "Unknown Error";
+                    Toast.makeText(ProfileActivity.this, "Failed: " + error, Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
     }
 
     /**
